@@ -1,0 +1,114 @@
+name: Build Telegram Bot API (Multi-OS)
+
+on:
+    workflow_dispatch:
+        inputs:
+            version_tag:
+                description: 'v2.0.0'
+                required: true
+                default: 'v2.0.0'
+
+permissions:
+    contents: write
+
+jobs:
+    build:
+        name: Compiling on ${{ matrix.os_name }}
+        runs-on: ubuntu-latest
+        strategy:
+            # fail-fast: false memastikan jika satu OS gagal (misal Debian 10),
+            # OS lain (seperti Debian 12) tetap lanjut sampai selesai.
+            fail-fast: false
+            matrix:
+                include:
+                    - os_name: 'debian-10'
+                      container_image: 'debian:10'
+                    - os_name: 'debian-11'
+                      container_image: 'debian:11'
+                    - os_name: 'debian-12'
+                      container_image: 'debian:12'
+                    - os_name: 'ubuntu-20.04'
+                      container_image: 'ubuntu:20.04'
+                    - os_name: 'ubuntu-22.04'
+                      container_image: 'ubuntu:22.04'
+                    - os_name: 'ubuntu-24.04'
+                      container_image: 'ubuntu:24.04'
+
+        container: ${{ matrix.container_image }}
+
+        steps:
+            - name: 📦 Install Dependencies
+              run: |
+                  apt-get update
+                  apt-get install -y make git zlib1g-dev libssl-dev gperf cmake clang libc++-dev libc++abi-dev zip
+
+            - name: 📥 Clone Source Code
+              run: git clone --recursive https://github.com/tdlib/telegram-bot-api.git src
+
+            - name: ⚙️ Compile Binary (Release Mode)
+              run: |
+                  cd src && mkdir build && cd build
+                  export CC=clang CXX=clang++
+                  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=../../out ..
+                  # Menggunakan -j2 agar tidak melebihi batas RAM VM GitHub
+                  cmake --build . --target install -j2
+
+            - name: 🚀 Upload Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  # Kita gunakan nama OS sebagai ID unik
+                  name: ${{ matrix.os_name }}
+                  path: out/bin/telegram-bot-api
+                  retention-days: 1
+
+    publish:
+        name: Create GitHub Release
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - name: 📥 Download All Compiled Binaries
+              uses: actions/download-artifact@v4
+              with:
+                  path: all-binaries
+
+            - name: 🗜️ Prepare Assets and Checksums
+              run: |
+                  mkdir final-assets
+                  cd all-binaries
+                  for os_dir in *; do
+                    if [ -d "$os_dir" ]; then
+                      chmod +x "$os_dir/telegram-bot-api"
+                      # Zip dengan nama yang bersih
+                      zip -j "../final-assets/telegram-bot-api-$os_dir.zip" "$os_dir/telegram-bot-api"
+                    fi
+                  done
+
+            - name: 🎉 Publish to GitHub Releases
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ github.event.inputs.version_tag }}
+                  name: 'Telegram Bot API Server ${{ github.event.inputs.version_tag }}'
+                  body: |
+                      ## 🚀 Pre-compiled Binaries for Multi-OS
+                      Build otomatis ini menyediakan binary `telegram-bot-api` server untuk berbagai distribusi Linux.
+
+                      ### 📦 Distro yang didukung:
+                      - **Debian:** 10 (Buster), 11 (Bullseye), 12 (Bookworm)
+                      - **Ubuntu:** 20.04 (Focal), 22.04 (Jammy), 24.04 (Noble)
+
+                      ### 🛠️ Cara Penggunaan:
+                      1. Unduh file `.zip` yang sesuai dengan OS VPS kamu.
+                      2. Ekstrak file: `unzip nama-file.zip`
+                      3. Berikan izin: `chmod +x telegram-bot-api`
+                      4. Jalankan server:
+                         ```bash
+                         ./telegram-bot-api --api-id=YOUR_ID --api-hash=YOUR_HASH --local --http-port=8081
+                         ```
+
+                      *Diproses secara otomatis menggunakan GitHub Actions.*
+                  draft: false
+                  prerelease: false
+                  files: final-assets/*.zip
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  
