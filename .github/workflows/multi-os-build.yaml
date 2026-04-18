@@ -16,8 +16,6 @@ jobs:
         name: Compiling on ${{ matrix.os_name }}
         runs-on: ubuntu-latest
         strategy:
-            # fail-fast: false memastikan jika satu OS gagal (misal Debian 10),
-            # OS lain (seperti Debian 12) tetap lanjut sampai selesai.
             fail-fast: false
             matrix:
                 include:
@@ -25,8 +23,6 @@ jobs:
                       container_image: 'debian:11'
                     - os_name: 'debian-12'
                       container_image: 'debian:12'
-                    - os_name: 'ubuntu-20.04'
-                      container_image: 'ubuntu:20.04'
                     - os_name: 'ubuntu-22.04'
                       container_image: 'ubuntu:22.04'
                     - os_name: 'ubuntu-24.04'
@@ -48,13 +44,11 @@ jobs:
                   cd src && mkdir build && cd build
                   export CC=clang CXX=clang++
                   cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=../../out ..
-                  # Menggunakan -j2 agar tidak melebihi batas RAM VM GitHub
                   cmake --build . --target install -j2
 
             - name: 🚀 Upload Artifact
               uses: actions/upload-artifact@v4
               with:
-                  # Kita gunakan nama OS sebagai ID unik
                   name: ${{ matrix.os_name }}
                   path: out/bin/telegram-bot-api
                   retention-days: 1
@@ -76,7 +70,6 @@ jobs:
                   for os_dir in *; do
                     if [ -d "$os_dir" ]; then
                       chmod +x "$os_dir/telegram-bot-api"
-                      # Zip dengan nama yang bersih
                       zip -j "../final-assets/telegram-bot-api-$os_dir.zip" "$os_dir/telegram-bot-api"
                     fi
                   done
