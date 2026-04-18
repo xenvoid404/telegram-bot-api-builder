@@ -1,41 +1,33 @@
 name: Build Telegram Bot API (Debian 12)
 
-# Mengizinkan build dijalankan secara manual via tab Actions
 on:
-  workflow_dispatch:
+    workflow_dispatch:
 
 jobs:
-  build-binary:
-    # GitHub Runner jalan di Ubuntu...
-    runs-on: ubuntu-latest 
-    # ...TAPI eksekusi prosesnya terjadi di dalam container murni Debian 12
-    container: debian:12
+    build-binary:
+        runs-on: ubuntu-latest
+        container: debian:12
 
-    steps:
-      - name: 📦 Update OS & Install Build Dependencies
-        # Di dalam container, kita sudah otomatis menjadi root, jadi tidak perlu 'sudo'
-        run: |
-          apt-get update
-          apt-get install -y make git zlib1g-dev libssl-dev gperf cmake clang libc++-dev libc++abi-dev
+        steps:
+            - name: 📦 Update OS & Install Build Dependencies
+              run: |
+                  apt-get update
+                  apt-get install -y make git zlib1g-dev libssl-dev gperf cmake clang libc++-dev libc++abi-dev
 
-      - name: 📥 Clone Source Code dari Telegram (TDLib)
-        run: |
-          git clone --recursive https://github.com/tdlib/telegram-bot-api.git src
+            - name: 📥 Clone Source Code dari Telegram (TDLib)
+              run: |
+                  git clone --recursive https://github.com/tdlib/telegram-bot-api.git src
 
-      - name: ⚙️ Compile Binary (Proses ini memakan waktu ~15-20 menit)
-        run: |
-          cd src
-          mkdir build && cd build
-          # Target install dialihkan ke folder lokal "../out"
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=../../out ..
-          
-          # Gunakan semua core yang disediakan GitHub Actions (biasanya 2-4 vCPU)
-          cmake --build . --target install -j$(nproc)
+            - name: ⚙️ Compile Binary (Proses ini memakan waktu ~15-20 menit)
+              run: |
+                  cd src
+                  mkdir build && cd build
+                  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=../../out ..
+                  cmake --build . --target install -j$(nproc)
 
-      - name: 🚀 Upload Binary sebagai Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tg-bot-api-debian12-xenvoid
-          # Ambil langsung file executeable-nya saja biar ukuran download kecil
-          path: out/bin/telegram-bot-api 
-          
+            - name: 🚀 Upload Binary sebagai Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: telegram-bot-api-debian12
+                  path: out/bin/telegram-bot-api
+                  
